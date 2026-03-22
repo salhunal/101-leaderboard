@@ -105,7 +105,7 @@ export default function LeaderboardPage() {
             }}
           >
             <p className="text-xs font-bold mb-2" style={{ color: '#f59e0b' }}>
-              {monthName.toUpperCase()} KRAL 👑
+              {monthName.toUpperCase()}'IN KRALI 👑
             </p>
             <Avatar
               name={monthWinner}
@@ -128,7 +128,7 @@ export default function LeaderboardPage() {
             }}
           >
             <p className="text-xs font-bold mb-2" style={{ color: '#ef4444' }}>
-              {monthName.toUpperCase()} ELEMAN 😳
+              {monthName.toUpperCase()}'IN KÖTÜSÜ
             </p>
             <div className="relative" style={{ marginBottom: '8px' }}>
               <Avatar
