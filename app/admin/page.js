@@ -47,6 +47,7 @@ function AdminContent() {
   const [date, setDate] = useState(todayISO());
   const [selectedSeason, setSelectedSeason] = useState('');
   const [ranks, setRanks] = useState({});
+  const [selectedPlayers, setSelectedPlayers] = useState([]);
   const [note, setNote] = useState('');
 
   useEffect(() => {
@@ -56,7 +57,8 @@ function AdminContent() {
   }, [settings]);
 
   useEffect(() => {
-    if (players.length > 0 && Object.keys(ranks).length === 0) {
+    if (players.length > 0 && selectedPlayers.length === 0) {
+      setSelectedPlayers(players.map((p) => p.name));
       setRanks(players.reduce((acc, p, i) => ({ ...acc, [p.name]: i + 1 }), {}));
     }
   }, [players]);
@@ -71,6 +73,7 @@ function AdminContent() {
         const r = {};
         game.players.forEach((p) => (r[p.name] = p.rank));
         setRanks(r);
+        setSelectedPlayers(game.players.map((p) => p.name));
       }
     }
   }, [editId, games]);
@@ -91,13 +94,17 @@ function AdminContent() {
   }
 
   async function handleSave() {
-    const rankValues = Object.values(ranks).map(Number);
-    if (new Set(rankValues).size !== players.length) {
+    if (selectedPlayers.length < 2) {
+      showToast('En az 2 oyuncu seçmelisin!');
+      return;
+    }
+    const activeRanks = selectedPlayers.map((name) => Number(ranks[name]));
+    if (new Set(activeRanks).size !== selectedPlayers.length) {
       showToast('Her oyuncunun sırası farklı olmalı!');
       return;
     }
     setSaving(true);
-    const gamePlayers = players.map((p) => ({ name: p.name, rank: Number(ranks[p.name]) }));
+    const gamePlayers = selectedPlayers.map((name) => ({ name, rank: Number(ranks[name]) }));
     try {
       if (editId) {
         await updateDoc(doc(db, 'games', editId), {
@@ -278,44 +285,96 @@ function AdminContent() {
             </div>
           )}
           <div className="mb-4">
-            <label className="text-xs block mb-3" style={{ color: 'var(--muted)' }}>
-              Sıralama
+            <label className="text-xs block mb-2" style={{ color: 'var(--muted)' }}>
+              Oynayan Oyuncular
             </label>
-            <div className="flex flex-col gap-3">
-              {players.map((player) => (
-                <div key={player.id} className="flex items-center gap-3">
-                  {player.photoURL ? (
-                    <img src={player.photoURL} className="w-8 h-8 rounded-full object-cover" />
-                  ) : (
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
-                      style={{ background: 'var(--surface2)' }}
-                    >
-                      {player.name[0]}
-                    </div>
-                  )}
-                  <span className="flex-1 font-medium">{player.name}</span>
-                  <select
-                    value={ranks[player.name] || 1}
-                    onChange={(e) =>
-                      setRanks((prev) => ({ ...prev, [player.name]: Number(e.target.value) }))
-                    }
-                    className="px-3 py-2 rounded-xl text-sm"
+            <div className="flex flex-wrap gap-2 mb-3">
+              {players.map((player) => {
+                const isSelected = selectedPlayers.includes(player.name);
+                return (
+                  <button
+                    key={player.id}
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedPlayers((prev) => prev.filter((n) => n !== player.name));
+                      } else {
+                        const newSelected = [...selectedPlayers, player.name];
+                        setSelectedPlayers(newSelected);
+                        if (!ranks[player.name]) {
+                          setRanks((prev) => ({ ...prev, [player.name]: newSelected.length }));
+                        }
+                      }
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm"
                     style={{
-                      background: 'var(--surface2)',
+                      background: isSelected ? 'var(--accent)' : 'var(--surface2)',
+                      color: isSelected ? '#fff' : 'var(--muted)',
                       border: '1px solid var(--border)',
-                      color: 'var(--text)',
                     }}
                   >
-                    {[1, 2, 3, 4].map((r) => (
-                      <option key={r} value={r}>
-                        {r}. sıra
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ))}
+                    {player.photoURL ? (
+                      <img src={player.photoURL} className="w-5 h-5 rounded-full object-cover" />
+                    ) : (
+                      <div
+                        className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
+                        style={{ background: 'rgba(255,255,255,0.2)' }}
+                      >
+                        {player.name[0]}
+                      </div>
+                    )}
+                    {player.name}
+                  </button>
+                );
+              })}
             </div>
+            {selectedPlayers.length > 0 && (
+              <>
+                <label className="text-xs block mb-2" style={{ color: 'var(--muted)' }}>
+                  Sıralama
+                </label>
+                <div className="flex flex-col gap-2">
+                  {selectedPlayers.map((name) => {
+                    const player = players.find((p) => p.name === name);
+                    return (
+                      <div key={name} className="flex items-center gap-3">
+                        {player?.photoURL ? (
+                          <img
+                            src={player.photoURL}
+                            className="w-8 h-8 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
+                            style={{ background: 'var(--surface2)' }}
+                          >
+                            {name[0]}
+                          </div>
+                        )}
+                        <span className="flex-1 font-medium">{name}</span>
+                        <select
+                          value={ranks[name] || 1}
+                          onChange={(e) =>
+                            setRanks((prev) => ({ ...prev, [name]: Number(e.target.value) }))
+                          }
+                          className="px-3 py-2 rounded-xl text-sm"
+                          style={{
+                            background: 'var(--surface2)',
+                            border: '1px solid var(--border)',
+                            color: 'var(--text)',
+                          }}
+                        >
+                          {selectedPlayers.map((_, i) => (
+                            <option key={i + 1} value={i + 1}>
+                              {i + 1}. sıra
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
           <div className="mb-4">
             <label className="text-xs block mb-2" style={{ color: 'var(--muted)' }}>
