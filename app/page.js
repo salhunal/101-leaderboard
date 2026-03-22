@@ -1,5 +1,6 @@
 "use client";
 import { useGames } from "@/hooks/useGames";
+import { usePlayers } from "@/hooks/usePlayers";
 import { sortedLeaderboard } from "@/lib/scoring";
 
 const RANK_STYLES = {
@@ -9,32 +10,40 @@ const RANK_STYLES = {
 };
 
 export default function LeaderboardPage() {
-  const { games, loading } = useGames();
+  const { games, loading: gLoading } = useGames();
+  const { players, loading: pLoading } = usePlayers();
 
-  if (loading) return <p className="text-center mt-20" style={{ color: "var(--muted)" }}>Yükleniyor...</p>;
+  if (gLoading || pLoading)
+    return <p className="text-center mt-20" style={{ color: "var(--muted)" }}>Yükleniyor...</p>;
 
-  const board = sortedLeaderboard(games);
+  const playerNames = players.map((p) => p.name);
+  const board = sortedLeaderboard(playerNames, games);
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">101 Leaderboard</h1>
-          <p style={{ color: "var(--muted)" }} className="text-sm mt-0.5">{games.length} oyun oynandı</p>
+          <p style={{ color: "var(--muted)" }} className="text-sm mt-0.5">
+            {games.length} oyun oynandı
+          </p>
         </div>
         <span className="text-3xl">⭐</span>
       </div>
 
-      {games.length === 0 ? (
+      {board.length === 0 ? (
         <div className="text-center mt-20" style={{ color: "var(--muted)" }}>
           <p className="text-4xl mb-3">🃏</p>
-          <p>Henüz oyun girilmedi.</p>
+          <p>Admin panelinden oyuncu ekleyin.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
           {board.map((player) => {
             const style = RANK_STYLES[player.rank] || {};
-            const wr = player.total > 0 ? Math.round((player.wins / player.total) * 100) : 0;
+            const wr =
+              player.total > 0
+                ? Math.round((player.wins / player.total) * 100)
+                : 0;
             return (
               <div
                 key={player.name}
@@ -63,7 +72,9 @@ export default function LeaderboardPage() {
                   >
                     {player.pts}
                   </div>
-                  <div className="text-xs" style={{ color: "var(--muted)" }}>puan</div>
+                  <div className="text-xs" style={{ color: "var(--muted)" }}>
+                    puan
+                  </div>
                 </div>
               </div>
             );

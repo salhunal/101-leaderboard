@@ -1,45 +1,57 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useGames } from "@/hooks/useGames";
-import { calcScores, PLAYERS } from "@/lib/scoring";
+import { usePlayers } from "@/hooks/usePlayers";
+import { calcScores } from "@/lib/scoring";
 
-const RANK_LABELS = { 1: "1.", 2: "2.", 3: "3.", 4: "Son" };
-const RANK_COLORS = { 1: "#f59e0b", 2: "#94a3b8", 3: "#cd7c2f", 4: "#475569" };
+const RANK_LABELS = { 1: "1.", 2: "2.", 3: "3.", 4: "4.", 5: "5." };
+const RANK_COLORS = {
+  1: "#f59e0b", 2: "#94a3b8", 3: "#cd7c2f", 4: "#475569", 5: "#334155",
+};
 
 export default function StatsPage() {
-  const { games, loading } = useGames();
-  const [active, setActive] = useState(PLAYERS[0]);
+  const { games, loading: gLoading } = useGames();
+  const { players, loading: pLoading } = usePlayers();
+  const [active, setActive] = useState(null);
 
-  if (loading) return <p className="text-center mt-20" style={{ color: "var(--muted)" }}>Yükleniyor...</p>;
+  useEffect(() => {
+    if (players.length > 0 && !active) setActive(players[0].name);
+  }, [players]);
 
-  const scores = calcScores(games);
-  const st = scores[active];
-  const wr = st.total > 0 ? Math.round((st.wins / st.total) * 100) : 0;
-  const recent = st.recentRanks.slice(-6).reverse();
+  if (gLoading || pLoading)
+    return <p className="text-center mt-20" style={{ color: "var(--muted)" }}>Yükleniyor...</p>;
+
+  const playerNames = players.map((p) => p.name);
+  const scores = calcScores(playerNames, games);
+  const st = active ? scores[active] : null;
+  const wr = st && st.total > 0 ? Math.round((st.wins / st.total) * 100) : 0;
+  const recent = st ? st.recentRanks.slice(-6).reverse() : [];
 
   return (
     <div>
       <h1 className="text-2xl font-bold mb-5">İstatistikler</h1>
 
       <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
-        {PLAYERS.map((p) => (
+        {players.map((p) => (
           <button
-            key={p}
-            onClick={() => setActive(p)}
+            key={p.id}
+            onClick={() => setActive(p.name)}
             className="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all"
             style={{
-              background: active === p ? "#6366f1" : "var(--surface)",
-              color: active === p ? "#fff" : "var(--muted)",
+              background: active === p.name ? "#6366f1" : "var(--surface)",
+              color: active === p.name ? "#fff" : "var(--muted)",
               border: "1px solid var(--border)",
             }}
           >
-            {p}
+            {p.name}
           </button>
         ))}
       </div>
 
-      {games.length === 0 ? (
-        <p className="text-center mt-10" style={{ color: "var(--muted)" }}>Henüz oyun girilmedi.</p>
+      {!st || games.length === 0 ? (
+        <p className="text-center mt-10" style={{ color: "var(--muted)" }}>
+          Henüz oyun girilmedi.
+        </p>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 mb-5">
@@ -89,11 +101,8 @@ export default function StatsPage() {
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm"
                     style={{ background: "var(--surface2)" }}
                   >
-                    <div
-                      className="w-2 h-2 rounded-full"
-                      style={{ background: RANK_COLORS[r] }}
-                    />
-                    {RANK_LABELS[r]}
+                    <div className="w-2 h-2 rounded-full" style={{ background: RANK_COLORS[r] }} />
+                    {RANK_LABELS[r] || `${r}.`}
                   </div>
                 ))}
               </div>
