@@ -2,10 +2,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { useSettings } from "@/hooks/useSettings";
+import { useEffect } from "react";
 
 const navItems = [
   { href: "/", label: "Sıralama", icon: "🏆" },
   { href: "/stats", label: "İstatistik", icon: "📊" },
+  { href: "/head2head", label: "H2H", icon: "⚔️" },
   { href: "/history", label: "Geçmiş", icon: "📅" },
   { href: "/admin", label: "Admin", icon: "⚙️" },
 ];
@@ -13,10 +16,15 @@ const navItems = [
 export default function BottomNav() {
   const pathname = usePathname();
   const { isAdmin } = useAuth();
+  const { settings } = useSettings();
 
-  const items = isAdmin
-    ? navItems
-    : navItems.filter((i) => i.href !== "/admin");
+  useEffect(() => {
+    if (settings?.accentColor) {
+      document.documentElement.style.setProperty("--accent", settings.accentColor);
+    }
+  }, [settings?.accentColor]);
+
+  const items = isAdmin ? navItems : navItems.filter((i) => i.href !== "/admin");
 
   return (
     <nav
@@ -29,8 +37,8 @@ export default function BottomNav() {
           <Link
             key={item.href}
             href={item.href}
-            className="flex flex-col items-center gap-0.5 px-4 py-2 rounded-xl transition-all"
-            style={{ color: active ? "#818cf8" : "var(--muted)" }}
+            className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all"
+            style={{ color: active ? "var(--accent)" : "var(--muted)" }}
           >
             <span className="text-xl">{item.icon}</span>
             <span className="text-xs font-medium">{item.label}</span>

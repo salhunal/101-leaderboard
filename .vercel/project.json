@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_XqLD38etMFdQZU7PdYxlTKzfCsay",
+  "orgId": "team_D4fu6wOCS36tLWL7k24ACev8",
+  "projectName": "101-leaderboard",
+  "settings": {
+    "createdAt": 1774165053746,
+    "framework": "nextjs",
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}

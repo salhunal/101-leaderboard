@@ -1,14 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import {
-  collection,
-  onSnapshot,
-  addDoc,
-  deleteDoc,
-  doc,
-  orderBy,
-  query,
-} from "firebase/firestore";
+import { collection, onSnapshot, addDoc, deleteDoc, doc, orderBy, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export function usePlayers() {
@@ -25,10 +17,7 @@ export function usePlayers() {
   }, []);
 
   async function addPlayer(name) {
-    await addDoc(collection(db, "players"), {
-      name,
-      createdAt: Date.now(),
-    });
+    await addDoc(collection(db, "players"), { name, createdAt: Date.now() });
   }
 
   async function removePlayer(id) {

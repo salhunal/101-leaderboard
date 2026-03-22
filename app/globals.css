@@ -9,9 +9,6 @@
   --border: #334155;
   --text: #f1f5f9;
   --muted: #94a3b8;
-  --gold: #f59e0b;
-  --silver: #94a3b8;
-  --bronze: #cd7c2f;
   --accent: #6366f1;
 }
 
@@ -21,3 +18,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   min-height: 100vh;
 }
+
+.accent-bg { background: var(--accent) !important; }
+.accent-color { color: var(--accent) !important; }
+.accent-border { border-color: var(--accent) !important; }

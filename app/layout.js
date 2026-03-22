@@ -5,14 +5,19 @@ export const metadata = {
   title: "101 Leaderboard",
   description: "Arkadaş grubu 101 sıralama uygulaması",
   manifest: "/manifest.json",
+};
+
+export const viewport = {
   themeColor: "#0f172a",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="tr">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
