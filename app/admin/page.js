@@ -1,304 +1,268 @@
-"use client";
-import { useState, useEffect, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { useAuth } from "@/hooks/useAuth";
-import { useGames } from "@/hooks/useGames";
-import { usePlayers } from "@/hooks/usePlayers";
-import { useSeasons } from "@/hooks/useSeasons";
-import { useSettings } from "@/hooks/useSettings";
-import { todayISO } from "@/lib/scoring";
-import { db, auth } from "@/lib/firebase";
-import { signInWithEmailAndPassword, signOut } from "firebase/auth";
-import { collection, addDoc, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+'use client';
+import { useGames } from '@/hooks/useGames';
+import { usePlayers } from '@/hooks/usePlayers';
+import { useSeasons } from '@/hooks/useSeasons';
+import { useSettings } from '@/hooks/useSettings';
+import { sortedLeaderboard, calcBadges, calcScores } from '@/lib/scoring';
+import { useState } from 'react';
 
-const ACCENT_COLORS = [
-  { label: "İndigo", value: "#6366f1" },
-  { label: "Mor", value: "#8b5cf6" },
-  { label: "Mavi", value: "#3b82f6" },
-  { label: "Yeşil", value: "#10b981" },
-  { label: "Turuncu", value: "#f97316" },
-  { label: "Kırmızı", value: "#ef4444" },
-  { label: "Pembe", value: "#ec4899" },
-];
+const RANK_STYLES = {
+  1: { bg: '#451a03', color: '#f59e0b', badge: '🥇' },
+  2: { bg: '#1e293b', color: '#94a3b8', badge: '🥈' },
+  3: { bg: '#2c1810', color: '#cd7c2f', badge: '🥉' },
+};
 
-function AdminContent() {
-  const { isAdmin, loading: authLoading } = useAuth();
-  const { games } = useGames();
-  const { players, addPlayer, removePlayer } = usePlayers();
-  const { seasons, addSeason } = useSeasons();
-  const { settings, saveSettings } = useSettings();
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const editId = searchParams.get("edit");
+function getPhotoURL(name) {
+  const slug = name
+    .toLowerCase()
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ı/g, 'i')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .replace(/\s/g, '');
+  return `/photos/${slug}.png`;
+}
 
-  const [tab, setTab] = useState("game");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [authError, setAuthError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState("");
-  const [newPlayerName, setNewPlayerName] = useState("");
-  const [newSeasonName, setNewSeasonName] = useState("");
-  const [appName, setAppName] = useState(settings.appName);
-  const [accentColor, setAccentColor] = useState(settings.accentColor);
+function getMonthGames(games) {
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  return games.filter((g) => g.date && g.date.startsWith(ym));
+}
 
-  const [date, setDate] = useState(todayISO());
-  const [selectedSeason, setSelectedSeason] = useState("");
-  const [ranks, setRanks] = useState({});
-  const [note, setNote] = useState("");
+export default function LeaderboardPage() {
+  const { seasons } = useSeasons();
+  const [selectedSeason, setSelectedSeason] = useState('all');
+  const { games, loading: gLoading } = useGames(selectedSeason === 'all' ? null : selectedSeason);
+  const { players, loading: pLoading } = usePlayers();
+  const { settings } = useSettings();
 
-  useEffect(() => {
-    setAppName(settings.appName);
-    setAccentColor(settings.accentColor);
-  }, [settings]);
-
-  useEffect(() => {
-    if (players.length > 0 && Object.keys(ranks).length === 0) {
-      setRanks(players.reduce((acc, p, i) => ({ ...acc, [p.name]: i + 1 }), {}));
-    }
-  }, [players]);
-
-  useEffect(() => {
-    if (editId && games.length > 0 && players.length > 0) {
-      const game = games.find((g) => g.id === editId);
-      if (game) {
-        setDate(game.date);
-        setNote(game.note || "");
-        setSelectedSeason(game.seasonId || "");
-        const r = {};
-        game.players.forEach((p) => (r[p.name] = p.rank));
-        setRanks(r);
-      }
-    }
-  }, [editId, games, players]);
-
-  function showToast(msg) {
-    setToast(msg);
-    setTimeout(() => setToast(""), 2500);
-  }
-
-  async function handleLogin(e) {
-    e.preventDefault();
-    setAuthError("");
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch {
-      setAuthError("Email veya şifre hatalı.");
-    }
-  }
-
-  async function handleSave() {
-    const rankValues = Object.values(ranks).map(Number);
-    if (new Set(rankValues).size !== players.length) {
-      showToast("Her oyuncunun sırası farklı olmalı!");
-      return;
-    }
-    setSaving(true);
-    const gamePlayers = players.map((p) => ({ name: p.name, rank: Number(ranks[p.name]) }));
-    try {
-      if (editId) {
-        await updateDoc(doc(db, "games", editId), { date, players: gamePlayers, note, seasonId: selectedSeason || null });
-        showToast("Oyun güncellendi ✓");
-        router.push("/history");
-      } else {
-        await addDoc(collection(db, "games"), { date, players: gamePlayers, note, seasonId: selectedSeason || null, createdAt: serverTimestamp() });
-        showToast("Oyun eklendi ✓");
-        setRanks(players.reduce((acc, p, i) => ({ ...acc, [p.name]: i + 1 }), {}));
-        setDate(todayISO());
-        setNote("");
-      }
-    } catch (err) {
-      showToast("Hata: " + err.message);
-    }
-    setSaving(false);
-  }
-
-  async function handleSaveSettings() {
-    await saveSettings({ appName, accentColor });
-    document.documentElement.style.setProperty("--accent", accentColor);
-    showToast("Ayarlar kaydedildi ✓");
-  }
-
-  if (authLoading) return <p className="text-center mt-20" style={{ color: "var(--muted)" }}>Yükleniyor...</p>;
-
-  if (!isAdmin) {
+  if (gLoading || pLoading)
     return (
-      <div>
-        <h1 className="text-2xl font-bold mb-6">Admin Girişi</h1>
-        <form onSubmit={handleLogin} className="flex flex-col gap-4">
-          <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl text-sm"
-            style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }} />
-          <input type="password" placeholder="Şifre" value={password} onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl text-sm"
-            style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }} />
-          {authError && <p className="text-sm" style={{ color: "#fca5a5" }}>{authError}</p>}
-          <button type="submit" className="w-full py-3 rounded-xl font-semibold" style={{ background: "var(--accent)", color: "#fff" }}>
-            Giriş Yap
-          </button>
-        </form>
-      </div>
+      <p className="text-center mt-20" style={{ color: 'var(--muted)' }}>
+        Yükleniyor...
+      </p>
     );
-  }
 
-  const tabs = [
-    { id: "game", label: "Oyun" },
-    { id: "players", label: "Oyuncular" },
-    { id: "seasons", label: "Sezonlar" },
-    { id: "settings", label: "Ayarlar" },
-  ];
+  const playerNames = players.map((p) => p.name);
+  const board = sortedLeaderboard(playerNames, games);
+  const scores = calcScores(playerNames, games);
+
+  const monthGames = getMonthGames(games);
+  const monthScores = calcScores(playerNames, monthGames);
+  const monthBoard = playerNames
+    .filter((n) => monthScores[n]?.total > 0)
+    .sort((a, b) => monthScores[a].pts - monthScores[b].pts);
+  const monthLoser = monthBoard[0];
+  const monthWinner = monthBoard[monthBoard.length - 1];
+  const monthName = new Date().toLocaleString('tr-TR', { month: 'long' });
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">Admin</h1>
-        <button onClick={() => signOut(auth)} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "var(--surface2)", color: "var(--muted)" }}>
-          Çıkış
-        </button>
+        <div>
+          <h1 className="text-2xl font-bold">{settings.appName}</h1>
+          <p style={{ color: 'var(--muted)' }} className="text-sm mt-0.5">
+            {games.length} oyun oynandı
+          </p>
+        </div>
+        <span className="text-3xl">⭐</span>
       </div>
 
-      <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
-        {tabs.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)} className="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap"
-            style={{ background: tab === t.id ? "var(--accent)" : "var(--surface)", color: tab === t.id ? "#fff" : "var(--muted)", border: "1px solid var(--border)" }}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "game" && (
-        <div className="rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <p className="text-sm mb-4 font-medium" style={{ color: "var(--muted)" }}>{editId ? "Oyunu Düzenle" : "Yeni Oyun"}</p>
-          <div className="mb-4">
-            <label className="text-xs block mb-2" style={{ color: "var(--muted)" }}>Tarih</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl text-sm"
-              style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }} />
-          </div>
-          {seasons.length > 0 && (
-            <div className="mb-4">
-              <label className="text-xs block mb-2" style={{ color: "var(--muted)" }}>Sezon (opsiyonel)</label>
-              <select value={selectedSeason} onChange={(e) => setSelectedSeason(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-sm"
-                style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}>
-                <option value="">Sezon yok</option>
-                {seasons.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+      {monthGames.length > 0 && monthWinner && monthLoser && monthWinner !== monthLoser && (
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <div
+            className="rounded-2xl p-4 flex flex-col items-center text-center"
+            style={{
+              background: 'linear-gradient(135deg, #451a03, #78350f)',
+              border: '2px solid #f59e0b',
+            }}
+          >
+            <p className="text-xs font-bold mb-2" style={{ color: '#f59e0b' }}>
+              {monthName.toUpperCase()} KRAL 👑
+            </p>
+            <img
+              src={getPhotoURL(monthWinner)}
+              alt={monthWinner}
+              className="w-16 h-16 rounded-full object-cover mb-2"
+              style={{ border: '3px solid #f59e0b' }}
+              onError={(e) => {
+                e.target.style.display = 'none';
+                e.target.nextSibling.style.display = 'flex';
+              }}
+            />
+            <div
+              className="w-16 h-16 rounded-full items-center justify-center mb-2 text-2xl font-bold"
+              style={{ background: '#92400e', border: '3px solid #f59e0b', display: 'none' }}
+            >
+              {monthWinner[0]}
             </div>
-          )}
-          <div className="mb-4">
-            <label className="text-xs block mb-3" style={{ color: "var(--muted)" }}>Sıralama</label>
-            <div className="flex flex-col gap-3">
-              {players.map((player) => (
-                <div key={player.id} className="flex items-center gap-3">
-                  <span className="flex-1 font-medium">{player.name}</span>
-                  <select value={ranks[player.name] || 1} onChange={(e) => setRanks((prev) => ({ ...prev, [player.name]: Number(e.target.value) }))}
-                    className="px-3 py-2 rounded-xl text-sm"
-                    style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }}>
-                    {players.map((_, i) => <option key={i + 1} value={i + 1}>{i + 1}. sıra</option>)}
-                  </select>
+            <p className="font-bold text-sm">{monthWinner}</p>
+            <p className="text-xs mt-0.5" style={{ color: '#fbbf24' }}>
+              {monthScores[monthWinner]?.pts} puan
+            </p>
+          </div>
+
+          <div
+            className="rounded-2xl p-4 flex flex-col items-center text-center"
+            style={{
+              background: 'linear-gradient(135deg, #1a0505, #450a0a)',
+              border: '2px solid #ef4444',
+            }}
+          >
+            <p className="text-xs font-bold mb-2" style={{ color: '#ef4444' }}>
+              {monthName.toUpperCase()} ELEMAN 😳
+            </p>
+            <div className="relative">
+              <img
+                src={getPhotoURL(monthLoser)}
+                alt={monthLoser}
+                className="w-16 h-16 rounded-full object-cover mb-2"
+                style={{ border: '3px solid #ef4444', filter: 'grayscale(40%)' }}
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
+              />
+              <div
+                className="w-16 h-16 rounded-full items-center justify-center mb-2 text-2xl font-bold"
+                style={{ background: '#7f1d1d', border: '3px solid #ef4444', display: 'none' }}
+              >
+                {monthLoser[0]}
+              </div>
+              <span className="absolute -top-1 -right-1 text-lg">😭</span>
+            </div>
+            <p className="font-bold text-sm">{monthLoser}</p>
+            <p className="text-xs mt-0.5" style={{ color: '#fca5a5' }}>
+              {monthScores[monthLoser]?.pts} puan
+            </p>
+          </div>
+        </div>
+      )}
+
+      {seasons.length > 0 && (
+        <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+          <button
+            onClick={() => setSelectedSeason('all')}
+            className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap"
+            style={{
+              background: selectedSeason === 'all' ? 'var(--accent)' : 'var(--surface)',
+              color: selectedSeason === 'all' ? '#fff' : 'var(--muted)',
+              border: '1px solid var(--border)',
+            }}
+          >
+            Tümü
+          </button>
+          {seasons.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setSelectedSeason(s.id)}
+              className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap"
+              style={{
+                background: selectedSeason === s.id ? 'var(--accent)' : 'var(--surface)',
+                color: selectedSeason === s.id ? '#fff' : 'var(--muted)',
+                border: '1px solid var(--border)',
+              }}
+            >
+              {s.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {board.length === 0 ? (
+        <div className="text-center mt-20" style={{ color: 'var(--muted)' }}>
+          <p className="text-4xl mb-3">🃏</p>
+          <p>Admin panelinden oyuncu ve oyun ekleyin.</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {board.map((player) => {
+            const style = RANK_STYLES[player.rank] || {};
+            const wr = player.total > 0 ? Math.round((player.wins / player.total) * 100) : 0;
+            const badges = calcBadges(player.name, scores, games);
+            return (
+              <div
+                key={player.name}
+                className="rounded-2xl p-4"
+                style={{
+                  background: style.bg || 'var(--surface)',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={getPhotoURL(player.name)}
+                      alt={player.name}
+                      className="w-12 h-12 rounded-full object-cover"
+                      style={{ border: `2px solid ${style.color || 'var(--border)'}` }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                      }}
+                    />
+                    <div
+                      className="w-12 h-12 rounded-full items-center justify-center text-lg font-bold"
+                      style={{
+                        background: 'var(--surface2)',
+                        color: style.color || 'var(--muted)',
+                        border: `2px solid ${style.color || 'var(--border)'}`,
+                        display: 'none',
+                      }}
+                    >
+                      {style.badge || player.rank}
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-base">{player.name}</span>
+                      {player.rank === 1 && <span>👑</span>}
+                      {badges.map((b, i) => (
+                        <span
+                          key={i}
+                          className="text-xs px-2 py-0.5 rounded-full"
+                          style={{ background: 'var(--surface2)', color: 'var(--muted)' }}
+                        >
+                          {b.icon} {b.label}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                      {player.total} oyun · %{wr} · {player.wins} 🥇
+                      {player.streak > 1 && (
+                        <span className="ml-1 text-orange-400">🔥{player.streak}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div
+                      className="text-2xl font-bold"
+                      style={{ color: style.color || 'var(--text)' }}
+                    >
+                      {player.pts}
+                    </div>
+                    <div className="text-xs" style={{ color: 'var(--muted)' }}>
+                      puan
+                    </div>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
-          <div className="mb-4">
-            <label className="text-xs block mb-2" style={{ color: "var(--muted)" }}>Not / Yorum (opsiyonel)</label>
-            <input type="text" placeholder="Bu oyun hakkında bir şey yaz..." value={note} onChange={(e) => setNote(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl text-sm"
-              style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }} />
-          </div>
-          <button onClick={handleSave} disabled={saving} className="w-full py-3 rounded-xl font-semibold"
-            style={{ background: "var(--accent)", color: "#fff", opacity: saving ? 0.6 : 1 }}>
-            {saving ? "Kaydediliyor..." : editId ? "Güncelle" : "Oyunu Kaydet"}
-          </button>
-          {editId && (
-            <button onClick={() => router.push("/history")} className="w-full py-3 rounded-xl text-sm mt-2"
-              style={{ background: "var(--surface2)", color: "var(--muted)" }}>İptal</button>
-          )}
-        </div>
-      )}
-
-      {tab === "players" && (
-        <div className="rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <p className="text-sm mb-4 font-medium" style={{ color: "var(--muted)" }}>Oyuncu Listesi</p>
-          <div className="flex flex-col gap-2 mb-5">
-            {players.map((p) => (
-              <div key={p.id} className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: "var(--surface2)" }}>
-                <span className="font-medium">{p.name}</span>
-                <button onClick={() => removePlayer(p.id)} className="text-xs px-3 py-1 rounded-lg" style={{ background: "#450a0a", color: "#fca5a5" }}>Sil</button>
+                <div className="mt-3 h-1.5 rounded-full" style={{ background: 'var(--surface2)' }}>
+                  <div
+                    className="h-1.5 rounded-full"
+                    style={{
+                      width: `${wr}%`,
+                      background: 'var(--accent)',
+                      transition: 'width 0.5s',
+                    }}
+                  />
+                </div>
               </div>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <input type="text" placeholder="Yeni oyuncu adı" value={newPlayerName} onChange={(e) => setNewPlayerName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { addPlayer(newPlayerName.trim()); setNewPlayerName(""); showToast("Oyuncu eklendi ✓"); } }}
-              className="flex-1 px-4 py-3 rounded-xl text-sm"
-              style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }} />
-            <button onClick={() => { addPlayer(newPlayerName.trim()); setNewPlayerName(""); showToast("Oyuncu eklendi ✓"); }}
-              className="px-5 py-3 rounded-xl font-semibold text-sm" style={{ background: "var(--accent)", color: "#fff" }}>Ekle</button>
-          </div>
-        </div>
-      )}
-
-      {tab === "seasons" && (
-        <div className="rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <p className="text-sm mb-4 font-medium" style={{ color: "var(--muted)" }}>Sezonlar</p>
-          <div className="flex flex-col gap-2 mb-5">
-            {seasons.length === 0 && <p className="text-sm" style={{ color: "var(--muted)" }}>Henüz sezon yok.</p>}
-            {seasons.map((s) => (
-              <div key={s.id} className="px-4 py-3 rounded-xl" style={{ background: "var(--surface2)" }}>
-                <span className="font-medium">{s.name}</span>
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <input type="text" placeholder="Sezon adı (ör: Ocak 2026)" value={newSeasonName} onChange={(e) => setNewSeasonName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { addSeason(newSeasonName.trim()); setNewSeasonName(""); showToast("Sezon eklendi ✓"); } }}
-              className="flex-1 px-4 py-3 rounded-xl text-sm"
-              style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }} />
-            <button onClick={() => { addSeason(newSeasonName.trim()); setNewSeasonName(""); showToast("Sezon eklendi ✓"); }}
-              className="px-5 py-3 rounded-xl font-semibold text-sm" style={{ background: "var(--accent)", color: "#fff" }}>Ekle</button>
-          </div>
-        </div>
-      )}
-
-      {tab === "settings" && (
-        <div className="rounded-2xl p-5" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <p className="text-sm mb-4 font-medium" style={{ color: "var(--muted)" }}>Uygulama Ayarları</p>
-          <div className="mb-4">
-            <label className="text-xs block mb-2" style={{ color: "var(--muted)" }}>Uygulama Adı</label>
-            <input type="text" value={appName} onChange={(e) => setAppName(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl text-sm"
-              style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)" }} />
-          </div>
-          <div className="mb-5">
-            <label className="text-xs block mb-3" style={{ color: "var(--muted)" }}>Tema Rengi</label>
-            <div className="flex flex-wrap gap-2">
-              {ACCENT_COLORS.map((c) => (
-                <button key={c.value} onClick={() => setAccentColor(c.value)}
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ background: c.value, border: accentColor === c.value ? "3px solid #fff" : "3px solid transparent" }}>
-                  {accentColor === c.value && <span className="text-white text-sm">✓</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-          <button onClick={handleSaveSettings} className="w-full py-3 rounded-xl font-semibold" style={{ background: "var(--accent)", color: "#fff" }}>
-            Kaydet
-          </button>
-        </div>
-      )}
-
-      {toast && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-full text-sm font-medium z-50"
-          style={{ background: "var(--accent)", color: "#fff" }}>
-          {toast}
+            );
+          })}
         </div>
       )}
     </div>
   );
-}
-
-export default function AdminPage() {
-  return <Suspense><AdminContent /></Suspense>;
 }

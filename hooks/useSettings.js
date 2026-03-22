@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-const DEFAULT = { appName: "101 Leaderboard", accentColor: "#6366f1" };
+const DEFAULT = { appName: "101 Leaderboard", accentColor: "#6366f1", sitePassword: "" };
 
 export function useSettings() {
   const [settings, setSettings] = useState(DEFAULT);

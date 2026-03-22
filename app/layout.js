@@ -1,6 +1,7 @@
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
 import PWAInstallBanner from "@/components/PWAInstallBanner";
+import SiteGuard from "@/components/SiteGuard";
 
 export const metadata = {
   title: "101 Leaderboard",
@@ -25,9 +26,11 @@ export default function RootLayout({ children }) {
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body className="pb-20">
-        <main className="max-w-lg mx-auto px-4 pt-6">{children}</main>
-        <PWAInstallBanner />
-        <BottomNav />
+        <SiteGuard>
+          <main className="max-w-lg mx-auto px-4 pt-6">{children}</main>
+          <PWAInstallBanner />
+          <BottomNav />
+        </SiteGuard>
       </body>
     </html>
   );
