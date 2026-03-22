@@ -12,28 +12,33 @@ const RANK_STYLES = {
   3: { bg: '#2c1810', color: '#cd7c2f', badge: '🥉' },
 };
 
-function Avatar({ name, photoURL, size = 12, borderColor = 'var(--border)', style = {} }) {
+function Avatar({ name, photoURL, sizePx = 48, borderColor = 'var(--border)', extraStyle = {} }) {
   const [err, setErr] = useState(false);
-  const s = `w-${size} h-${size}`;
+  const base = {
+    width: sizePx,
+    height: sizePx,
+    minWidth: sizePx,
+    minHeight: sizePx,
+    borderRadius: '50%',
+    objectFit: 'cover',
+    flexShrink: 0,
+    border: `2px solid ${borderColor}`,
+    ...extraStyle,
+  };
   if (photoURL && !err) {
-    return (
-      <img
-        src={photoURL}
-        alt={name}
-        className={`${s} rounded-full object-cover flex-shrink-0`}
-        style={{ border: `2px solid ${borderColor}`, ...style }}
-        onError={() => setErr(true)}
-      />
-    );
+    return <img src={photoURL} alt={name} style={base} onError={() => setErr(true)} />;
   }
   return (
     <div
-      className={`${s} rounded-full flex items-center justify-center text-lg font-bold flex-shrink-0`}
       style={{
+        ...base,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         background: 'var(--surface2)',
         color: borderColor,
-        border: `2px solid ${borderColor}`,
-        ...style,
+        fontWeight: 'bold',
+        fontSize: sizePx * 0.4,
       }}
     >
       {name[0]}
@@ -105,9 +110,9 @@ export default function LeaderboardPage() {
             <Avatar
               name={monthWinner}
               photoURL={getPhoto(monthWinner)}
-              size={16}
+              sizePx={64}
               borderColor="#f59e0b"
-              style={{ marginBottom: '8px' }}
+              extraStyle={{ marginBottom: '8px' }}
             />
             <p className="font-bold text-sm mt-1">{monthWinner}</p>
             <p className="text-xs mt-0.5" style={{ color: '#fbbf24' }}>
@@ -129,9 +134,9 @@ export default function LeaderboardPage() {
               <Avatar
                 name={monthLoser}
                 photoURL={getPhoto(monthLoser)}
-                size={16}
+                sizePx={64}
                 borderColor="#ef4444"
-                style={{ filter: 'grayscale(40%)' }}
+                extraStyle={{ filter: 'grayscale(40%)' }}
               />
               <span className="absolute -top-1 -right-1 text-lg">😭</span>
             </div>
@@ -197,7 +202,7 @@ export default function LeaderboardPage() {
                   <Avatar
                     name={player.name}
                     photoURL={getPhoto(player.name)}
-                    size={12}
+                    sizePx={48}
                     borderColor={style.color || 'var(--border)'}
                   />
                   <div className="flex-1 min-w-0">
