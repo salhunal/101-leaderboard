@@ -1,17 +1,21 @@
-"use client";
-import { useEffect, useState } from "react";
+'use client';
+import { useEffect, useState } from 'react';
 
 export default function PWAInstallBanner() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [show, setShow] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [showIOS, setShowIOS] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    // Daha önce kapatmışsa gösterme
-    if (localStorage.getItem("pwa-dismissed")) return;
-    // Zaten yüklüyse gösterme
-    if (window.matchMedia("(display-mode: standalone)").matches) return;
+    if (localStorage.getItem('pwa-dismissed')) {
+      setDismissed(true);
+      return;
+    }
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setDismissed(true);
+      return;
+    }
 
     const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.navigator.standalone;
     if (ios) {
@@ -23,15 +27,14 @@ export default function PWAInstallBanner() {
     const handler = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      setShow(true);
     };
-    window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
   function dismiss() {
-    localStorage.setItem("pwa-dismissed", "1");
-    setShow(false);
+    localStorage.setItem('pwa-dismissed', '1');
+    setDismissed(true);
     setShowIOS(false);
   }
 
@@ -39,51 +42,68 @@ export default function PWAInstallBanner() {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === "accepted") localStorage.setItem("pwa-dismissed", "1");
-    setShow(false);
+    if (outcome === 'accepted') localStorage.setItem('pwa-dismissed', '1');
     setDeferredPrompt(null);
+    setDismissed(true);
   }
 
-  if (!show && !showIOS) return null;
+  if (dismissed) return null;
 
-  return (
-    <div
-      className="fixed bottom-20 left-4 right-4 z-50 rounded-2xl p-4 flex items-center gap-3"
-      style={{ background: "#1e293b", border: "1px solid #6366f1", boxShadow: "0 0 20px #6366f133" }}
-    >
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "#0f172a" }}>
-        <span className="text-xl">📱</span>
-      </div>
-      <div className="flex-1">
-        <p className="font-semibold text-sm">Uygulamayı yükle</p>
-        {isIOS ? (
-          <p className="text-xs mt-0.5" style={{ color: "#94a3b8" }}>
-            Safari'de <strong>Paylaş</strong> → <strong>Ana Ekrana Ekle</strong>
-          </p>
-        ) : (
-          <p className="text-xs mt-0.5" style={{ color: "#94a3b8" }}>
-            Telefona uygulama olarak ekle
-          </p>
-        )}
-      </div>
-      <div className="flex gap-2">
-        {!isIOS && (
-          <button
-            onClick={install}
-            className="px-3 py-1.5 rounded-xl text-xs font-semibold"
-            style={{ background: "#6366f1", color: "#fff" }}
-          >
-            Ekle
-          </button>
-        )}
+  // iOS — küçük banner
+  if (showIOS) {
+    return (
+      <div
+        className="fixed bottom-20 left-4 right-4 z-50 rounded-2xl px-4 py-3 flex items-center gap-3"
+        style={{ background: '#1e293b', border: '1px solid #6366f1' }}
+      >
+        <span className="text-xl">📲</span>
+        <p className="flex-1 text-xs" style={{ color: '#94a3b8' }}>
+          <strong style={{ color: '#f1f5f9' }}>Uygulamayı ekle:</strong> Paylaş → Ana Ekrana Ekle
+        </p>
         <button
           onClick={dismiss}
-          className="px-3 py-1.5 rounded-xl text-xs"
-          style={{ background: "#334155", color: "#94a3b8" }}
+          className="text-xs px-2 py-1 rounded-lg"
+          style={{ background: '#334155', color: '#94a3b8' }}
         >
           ✕
         </button>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // Android — sadece küçük download butonu sağ altta
+  if (deferredPrompt) {
+    return (
+      <button
+        onClick={install}
+        className="fixed z-50 flex items-center justify-center rounded-full shadow-lg"
+        style={{
+          bottom: '72px',
+          right: '16px',
+          width: '44px',
+          height: '44px',
+          background: '#6366f1',
+          border: 'none',
+        }}
+        title="Uygulamayı yükle"
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="white"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+      </button>
+    );
+  }
+
+  return null;
 }
