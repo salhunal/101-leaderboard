@@ -73,8 +73,12 @@ export default function LeaderboardPage() {
   const monthGames = getMonthGames(games);
   const monthScores = calcScores(playerNames, monthGames);
   const monthBoard = playerNames
-    .filter((n) => monthScores[n]?.total > 0)
-    .sort((a, b) => monthScores[a].pts - monthScores[b].pts);
+    .filter((n) => monthScores[n]?.total >= 1)
+    .sort((a, b) => {
+      const avgA = monthScores[a].total > 0 ? monthScores[a].pts / monthScores[a].total : 0;
+      const avgB = monthScores[b].total > 0 ? monthScores[b].pts / monthScores[b].total : 0;
+      return avgA - avgB;
+    });
   const monthLoser = monthBoard[0];
   const monthWinner = monthBoard[monthBoard.length - 1];
   const monthName = new Date().toLocaleString('tr-TR', { month: 'long' });
@@ -105,7 +109,7 @@ export default function LeaderboardPage() {
             }}
           >
             <p className="text-xs font-bold mb-2" style={{ color: '#f59e0b' }}>
-              {monthName.toUpperCase()} KRAL 👑
+              {monthName.toUpperCase()}'IN KRALI 👑
             </p>
             <Avatar
               name={monthWinner}
@@ -128,7 +132,7 @@ export default function LeaderboardPage() {
             }}
           >
             <p className="text-xs font-bold mb-2" style={{ color: '#ef4444' }}>
-              {monthName.toUpperCase()} ELEMAN 😳
+              {monthName.toUpperCase()}'IN KÖTÜSÜ 😳
             </p>
             <div className="relative" style={{ marginBottom: '8px' }}>
               <Avatar
