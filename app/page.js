@@ -105,7 +105,7 @@ export default function LeaderboardPage() {
             }}
           >
             <p className="text-xs font-bold mb-2" style={{ color: '#f59e0b' }}>
-              {monthName.toUpperCase()}'IN KRALI 👑
+              {monthName.toUpperCase()} KRAL 👑
             </p>
             <Avatar
               name={monthWinner}
@@ -128,7 +128,7 @@ export default function LeaderboardPage() {
             }}
           >
             <p className="text-xs font-bold mb-2" style={{ color: '#ef4444' }}>
-              {monthName.toUpperCase()}'IN KÖTÜSÜ
+              {monthName.toUpperCase()} ELEMAN 😳
             </p>
             <div className="relative" style={{ marginBottom: '8px' }}>
               <Avatar
@@ -220,7 +220,7 @@ export default function LeaderboardPage() {
                       ))}
                     </div>
                     <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                      {player.total} oyun · %{wr} · {player.wins} 🥇
+                      {player.total} oyun · ort {player.avg} · %{wr} · {player.wins} 🥇
                       {player.streak > 1 && (
                         <span className="ml-1 text-orange-400">🔥{player.streak}</span>
                       )}
@@ -231,10 +231,10 @@ export default function LeaderboardPage() {
                       className="text-2xl font-bold"
                       style={{ color: style.color || 'var(--text)' }}
                     >
-                      {player.pts}
+                      {player.avg}
                     </div>
                     <div className="text-xs" style={{ color: 'var(--muted)' }}>
-                      puan
+                      ort/oyun
                     </div>
                   </div>
                 </div>
