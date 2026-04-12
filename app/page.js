@@ -1,10 +1,9 @@
 'use client';
 import { useGames } from '@/hooks/useGames';
 import { usePlayers } from '@/hooks/usePlayers';
-import { useSeasons } from '@/hooks/useSeasons';
 import { useSettings } from '@/hooks/useSettings';
 import { sortedLeaderboard, calcBadges, calcScores } from '@/lib/scoring';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 const RANK_STYLES = {
   1: { bg: '#451a03', color: '#f59e0b', badge: '🥇' },
@@ -25,9 +24,8 @@ function Avatar({ name, photoURL, sizePx = 48, borderColor = 'var(--border)', ex
     border: `2px solid ${borderColor}`,
     ...extraStyle,
   };
-  if (photoURL && !err) {
+  if (photoURL && !err)
     return <img src={photoURL} alt={name} style={base} onError={() => setErr(true)} />;
-  }
   return (
     <div
       style={{
@@ -46,18 +44,52 @@ function Avatar({ name, photoURL, sizePx = 48, borderColor = 'var(--border)', ex
   );
 }
 
-function getMonthGames(games) {
-  const now = new Date();
-  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  return games.filter((g) => g.date && g.date.startsWith(ym));
+function getMonthYearLabel(date) {
+  const [y, m] = date.split('-');
+  const monthNames = [
+    'Ocak',
+    'Şubat',
+    'Mart',
+    'Nisan',
+    'Mayıs',
+    'Haziran',
+    'Temmuz',
+    'Ağustos',
+    'Eylül',
+    'Ekim',
+    'Kasım',
+    'Aralık',
+  ];
+  return `${monthNames[parseInt(m) - 1]} ${y}`;
 }
 
 export default function LeaderboardPage() {
-  const { seasons } = useSeasons();
-  const [selectedSeason, setSelectedSeason] = useState('all');
-  const { games, loading: gLoading } = useGames(selectedSeason === 'all' ? null : selectedSeason);
+  const { games, loading: gLoading } = useGames();
   const { players, loading: pLoading } = usePlayers();
   const { settings } = useSettings();
+  const [selectedMonth, setSelectedMonth] = useState('all');
+
+  // Mevcut aylları oyunlardan çıkar
+  const months = useMemo(() => {
+    const seen = new Set();
+    const result = [];
+    [...games]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .forEach((g) => {
+        const ym = g.date.substring(0, 7);
+        if (!seen.has(ym)) {
+          seen.add(ym);
+          result.push(ym);
+        }
+      });
+    return result;
+  }, [games]);
+
+  // Seçili aya göre filtrele
+  const filteredGames = useMemo(() => {
+    if (selectedMonth === 'all') return games;
+    return games.filter((g) => g.date.startsWith(selectedMonth));
+  }, [games, selectedMonth]);
 
   if (gLoading || pLoading)
     return (
@@ -67,10 +99,13 @@ export default function LeaderboardPage() {
     );
 
   const playerNames = players.map((p) => p.name);
-  const board = sortedLeaderboard(playerNames, games);
-  const scores = calcScores(playerNames, games);
+  const board = sortedLeaderboard(playerNames, filteredGames);
+  const scores = calcScores(playerNames, filteredGames);
 
-  const monthGames = getMonthGames(games);
+  // Ayın kartları — her zaman bu ayın oyunlarından
+  const now = new Date();
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const monthGames = games.filter((g) => g.date.startsWith(thisMonth));
   const monthScores = calcScores(playerNames, monthGames);
   const monthBoard = playerNames
     .filter((n) => monthScores[n]?.total >= 1)
@@ -81,7 +116,7 @@ export default function LeaderboardPage() {
     });
   const monthLoser = monthBoard[0];
   const monthWinner = monthBoard[monthBoard.length - 1];
-  const monthName = new Date().toLocaleString('tr-TR', { month: 'long' });
+  const monthName = now.toLocaleString('tr-TR', { month: 'long' });
 
   function getPhoto(name) {
     return players.find((p) => p.name === name)?.photoURL || null;
@@ -99,6 +134,7 @@ export default function LeaderboardPage() {
         <span className="text-3xl">⭐</span>
       </div>
 
+      {/* Ayın kartları */}
       {monthGames.length > 0 && monthWinner && monthLoser && monthWinner !== monthLoser && (
         <div className="grid grid-cols-2 gap-3 mb-5">
           <div
@@ -109,7 +145,7 @@ export default function LeaderboardPage() {
             }}
           >
             <p className="text-xs font-bold mb-2" style={{ color: '#f59e0b' }}>
-              {monthName.toUpperCase()}'IN KRALI 👑
+              {monthName.toUpperCase()} KRALI 👑
             </p>
             <Avatar
               name={monthWinner}
@@ -123,7 +159,6 @@ export default function LeaderboardPage() {
               {monthScores[monthWinner]?.pts} puan
             </p>
           </div>
-
           <div
             className="rounded-2xl p-4 flex flex-col items-center text-center"
             style={{
@@ -132,7 +167,7 @@ export default function LeaderboardPage() {
             }}
           >
             <p className="text-xs font-bold mb-2" style={{ color: '#ef4444' }}>
-              {monthName.toUpperCase()}'IN KÖTÜSÜ 😳
+              {monthName.toUpperCase()} KÖTÜSÜ 😳
             </p>
             <div className="relative" style={{ marginBottom: '8px' }}>
               <Avatar
@@ -152,40 +187,43 @@ export default function LeaderboardPage() {
         </div>
       )}
 
-      {seasons.length > 0 && (
+      {/* Ay filtresi */}
+      {months.length > 1 && (
         <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
           <button
-            onClick={() => setSelectedSeason('all')}
+            onClick={() => setSelectedMonth('all')}
             className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap"
             style={{
-              background: selectedSeason === 'all' ? 'var(--accent)' : 'var(--surface)',
-              color: selectedSeason === 'all' ? '#fff' : 'var(--muted)',
+              background: selectedMonth === 'all' ? 'var(--accent)' : 'var(--surface)',
+              color: selectedMonth === 'all' ? '#fff' : 'var(--muted)',
               border: '1px solid var(--border)',
             }}
           >
             Tümü
           </button>
-          {seasons.map((s) => (
+          {months.map((m) => (
             <button
-              key={s.id}
-              onClick={() => setSelectedSeason(s.id)}
+              key={m}
+              onClick={() => setSelectedMonth(m)}
               className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap"
               style={{
-                background: selectedSeason === s.id ? 'var(--accent)' : 'var(--surface)',
-                color: selectedSeason === s.id ? '#fff' : 'var(--muted)',
+                background: selectedMonth === m ? 'var(--accent)' : 'var(--surface)',
+                color: selectedMonth === m ? '#fff' : 'var(--muted)',
                 border: '1px solid var(--border)',
               }}
             >
-              {s.name}
+              {getMonthYearLabel(m + '-01')}
             </button>
           ))}
         </div>
       )}
 
       {board.length === 0 ? (
-        <div className="text-center mt-20" style={{ color: 'var(--muted)' }}>
+        <div className="text-center mt-10" style={{ color: 'var(--muted)' }}>
           <p className="text-4xl mb-3">🃏</p>
-          <p>Admin panelinden oyuncu ve oyun ekleyin.</p>
+          <p>
+            {selectedMonth === 'all' ? 'Henüz yeterli oyun yok.' : 'Bu ay henüz yeterli oyun yok.'}
+          </p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
